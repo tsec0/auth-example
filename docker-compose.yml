@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:18-alpine
+    container_name: auth_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: authdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - auth_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: auth_redis
+    restart: always
+    volumes:
+      - redisdata:/data
+    networks:
+      - auth_net
+
+  api:
+    build:
+      context: ./auth-example-api
+    container_name: auth_api
+    restart: always
+    depends_on:
+      - db
+      - redis
+    # ВМЕСТО environment: ... ИЗПОЛЗВАМЕ ТОВА:
+    env_file:
+      - ./auth-example-api/.env
+    # Презаписваме само host-овете, защото в Docker мрежата те не са localhost
+    environment:
+      - DB_HOST=db
+      - REDIS_HOST=redis
+      - FRONTEND_URL=http://localhost
+    networks:
+      - auth_net
+
+  web: # Това вече реално е Nginx Reverse Proxy + React Files
+    build:
+      context: ./auth-example-web
+    container_name: auth_web_proxy
+    restart: always
+    depends_on:
+      - api
+    ports:
+      # Това е ЕДИНСТВЕНИЯТ отворен порт към системата
+      - "80:80" 
+    networks:
+      - auth_net
+
+volumes:
+  pgdata:
+  redisdata:
+
+networks:
+  auth_net:
+    driver: bridge

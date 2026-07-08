@@ -1,7 +1,6 @@
 import React from 'react';
 import { StatusBar, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context'; 
-// ВНИМАНИЕ: Използваме ../ за да излезем от папката 'app' и да влезем в 'src'
 import { LoginScreen } from '../screens/LoginScreen';
 
 export default function IndexScreen() {

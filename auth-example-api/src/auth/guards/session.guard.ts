@@ -1,14 +1,37 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { Request } from 'express';
+
+// 1. Дефинираме как изглеждат данните, които сме записали в Redis
+interface RedisSessionData {
+  userId: string;
+  ip: string;
+  userAgent: string;
+  role?: string;
+  createdAt: string;
+}
+
+// 2. Дефинираме нашия Request, за да избегнем "any" при cookies и user
+interface GuardRequest extends Request {
+  cookies: Record<string, string>;
+  user?: {
+    id: string;
+    role?: string;
+  };
+}
 
 @Injectable()
 export class SessionGuard implements CanActivate {
   constructor(@InjectRedis() private readonly redis: Redis) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<Request>();
+    const request = context.switchToHttp().getRequest<GuardRequest>();
     // ОБНОВЕНО: Името на кукито
     const sessionId = request.cookies['auth_session'];
 
@@ -21,15 +44,17 @@ export class SessionGuard implements CanActivate {
       throw new UnauthorizedException('Сесията е изтекла или невалидна.');
     }
 
-    const sessionData = JSON.parse(sessionDataStr);
+    const sessionData = JSON.parse(sessionDataStr) as RedisSessionData;
     const currentUserAgent = request.headers['user-agent'];
 
     if (sessionData.userAgent !== currentUserAgent) {
       await this.redis.del(`session:${sessionId}`);
-      throw new UnauthorizedException('Засечена е аномалия в устройството. Моля, влезте отново.');
+      throw new UnauthorizedException(
+        'Засечена е аномалия в устройството. Моля, влезте отново.',
+      );
     }
 
-    request['user'] = { id: sessionData.userId, role: sessionData.role };
+    request.user = { id: sessionData.userId, role: sessionData.role };
     return true;
   }
 }
